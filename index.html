@@ -61,12 +61,16 @@
 
         .prod-table th, .prod-table td {
             border: 1px solid #000000; padding: 4px 10px; text-align: right; vertical-align: middle;
-            white-space: nowrap; /* ปรับคอลัมน์ให้พอดี ไม่ตัดคำ */
+            white-space: nowrap;
+            width: 15%; /* ปรับความกว้างคอลัมน์ที่ 15% ตามความต้องการ */
         }
 
         .prod-table th { background-color: #f2f2f2; font-weight: bold; text-align: center; }
+        .prod-table th:first-child, .prod-table td:first-child { width: 10%; text-align: center; } /* ให้คอลัมน์วันที่แคบกว่าหน่อย */
+        
         .prod-table td.col-date { text-align: center; font-weight: bold; }
-        .prod-table tfoot th { background-color: #e9ecef; font-weight: bold; }
+        .prod-table tfoot th { background-color: #e9ecef; font-weight: bold; text-align: right; }
+        .prod-table tfoot th:first-child { text-align: center; }
 
         .val-cell { font-weight: bold; }
         .val-zero { color: #888888; font-weight: normal; } 
@@ -135,13 +139,14 @@
         </div>
     </div>
 
-    <!-- พื้นที่แสดงรายงาน (ตารางจะถูก Gen ลงในนี้) -->
-    <div id="reportContainer">
-        <div class="text-center text-muted mt-5" id="placeholderText">
-            <i class="fa-solid fa-file-invoice" style="font-size: 3rem; margin-bottom: 10px; opacity: 0.5;"></i><br>
-            กรุณาระบุเลขที่ PO และกดค้นหา เพื่อดูรายงานยอดผลิต
-        </div>
+    <!-- ข้อความเริ่มต้น (แยกออกมานอก reportContainer เพื่อป้องกันการถูกลบทิ้ง) -->
+    <div class="text-center text-muted mt-5" id="placeholderText">
+        <i class="fa-solid fa-file-invoice" style="font-size: 3rem; margin-bottom: 10px; opacity: 0.5;"></i><br>
+        กรุณาระบุเลขที่ PO และกดค้นหา เพื่อดูรายงานยอดผลิต
     </div>
+
+    <!-- พื้นที่แสดงรายงาน (ตารางจะถูก Gen ลงในนี้) -->
+    <div id="reportContainer"></div>
 
 <script>
     const SUPABASE_URL = "https://siiiifesdjuunwmwozfb.supabase.co/rest/v1";
@@ -266,7 +271,11 @@
         const searchPO = document.getElementById('input_po_no').value.trim();
         if (!searchPO) return;
 
-        document.getElementById('placeholderText').style.display = 'none';
+        const placeholder = document.getElementById('placeholderText');
+        if (placeholder) {
+            placeholder.style.display = 'none';
+        }
+
         const container = document.getElementById('reportContainer');
         container.innerHTML = ''; 
 
@@ -321,7 +330,6 @@
 
         if (stepIds.length === 0) return;
 
-        // 1. คำนวณยอดรวมของแต่ละขั้นตอน เพื่อเช็คคอลัมน์ว่าง
         let stepTotals = {};
         stepIds.forEach(id => stepTotals[id] = 0);
 
@@ -336,12 +344,9 @@
             });
         });
 
-        // 2. คัดกรองเก็บเฉพาะขั้นตอนที่มียอดรวม > 0 (ซ่อนคอลัมน์ที่ไม่มีข้อมูล)
         let visibleStepIds = stepIds.filter(id => stepTotals[id] > 0);
 
         if (visibleStepIds.length === 0) {
-            // ถ้ารหัสชิ้นงานนี้ไม่มีการผลิตเลย ข้ามไปไม่สร้างตาราง หรือจะให้โชว์แค่หัวข้อก็ได้
-            // container.innerHTML += `<div class="report-section"><b>${order.order_no} | ${workCode}</b><br><span class="text-muted">ไม่มีประวัติการผลิตในช่วงวันที่เลือก</span></div>`;
             return;
         }
 
@@ -358,7 +363,7 @@
                 <table class="prod-table">
                     <thead>
                         <tr>
-                            <th style="width: 100px;">วันที่</th>`;
+                            <th>วันที่</th>`;
         
         visibleStepIds.forEach(stepId => {
             let stepName = maps.stepIdToName[stepId] || 'ไม่ระบุ';
@@ -406,7 +411,6 @@
         container.innerHTML += html;
     }
 
-    // ฟังก์ชัน Export Excel (แยก Sheet ตามรหัสชิ้นงาน)
     function exportToExcel() {
         const poNo = document.getElementById('input_po_no').value.trim() || 'Report';
         const sections = document.querySelectorAll('.report-section');
@@ -423,7 +427,6 @@
             const table = sec.querySelector('table');
             
             if(table) {
-                // ดึงชื่อชิ้นงานมาตั้งเป็นชื่อ Sheet (ตัดตัวอักษรที่ Excel ห้ามใช้ออก)
                 let sheetName = `Sheet${idx+1}`;
                 if(titleEl && titleEl.dataset.workcode) {
                     let rawName = titleEl.dataset.workcode;
@@ -435,7 +438,6 @@
             }
         });
 
-        // สร้างและดาวน์โหลดไฟล์
         XLSX.writeFile(wb, `JAGUAR_PO_${poNo}_Production.xlsx`);
     }
 </script>
