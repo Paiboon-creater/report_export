@@ -12,8 +12,8 @@
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
-    <!-- SheetJS สำหรับสร้างไฟล์ Excel -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <!-- เปลี่ยนมาใช้ xlsx-js-style เพื่อให้สามารถวาดเส้นตาราง ตั้งค่าฟอนต์ และทำตัวหนาใน Excel ได้ -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 
     <style>
         /* ตั้งค่าฟอนต์อังศนานิว ขนาด 16pt และพื้นหลังสีขาว */
@@ -76,7 +76,7 @@
             padding: 6px 10px; 
             text-align: right; 
             vertical-align: middle;
-            word-wrap: break-word; /* ตัดคำอัตโนมัติหากยาวเกิน */
+            word-wrap: break-word; 
             overflow: hidden;
         }
 
@@ -119,15 +119,15 @@
     <div class="control-panel no-print">
         <div class="row align-items-end g-3">
             
-            <!-- ช่องค้นหาเลขที่ PO -->
+            <!-- ช่องค้นหาเลขที่ PO (สำหรับดูบนหน้าเว็บ) -->
             <div class="col-md-4">
-                <label class="form-label fw-bold mb-1">ระบุเลขที่ PO:</label>
+                <label class="form-label fw-bold mb-1">ระบุเลขที่ PO (ดูบนเว็บ):</label>
                 <div class="input-group position-relative">
                     <input type="text" id="input_po_no" class="form-control" 
                            placeholder="พิมพ์เลขที่ PO..." autocomplete="off"
                            onkeyup="filterPODropdown()" onfocus="filterPODropdown()" onkeydown="handleEnter(event)">
                     <button class="btn btn-primary btn-custom" onclick="fetchAndRenderReport()">
-                        <i class="fa-solid fa-magnifying-glass"></i> ค้นหา
+                        <i class="fa-solid fa-magnifying-glass"></i> ดูรายงาน
                     </button>
                     <div id="smart_dropdown_po" class="smart-dropdown-menu"></div>
                 </div>
@@ -145,18 +145,18 @@
                 </div>
             </div>
             
-            <!-- โซนปุ่มควบคุม (ปริ้นต์ & ส่งออก) -->
+            <!-- โซนปุ่มควบคุม (ปริ้นต์ & ส่งออกทั้งหมด) -->
             <div class="col-md-4 text-end">
                 <div id="loadingStatus" class="d-inline-block text-primary me-3" style="display: none !important;">
                     <i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลด...
                 </div>
                 
-                <button class="btn btn-success btn-custom me-2" onclick="exportToExcel()">
-                    <i class="fa-solid fa-file-excel"></i> ส่งออก EXCEL
+                <button class="btn btn-success btn-custom me-2" onclick="exportAllToExcel()" title="ส่งออกทุก PO ในฐานข้อมูล ลงไฟล์ Excel เดียว แยก Sheet">
+                    <i class="fa-solid fa-file-excel"></i> ส่งออก EXCEL (ทุก PO)
                 </button>
                 
                 <button class="btn btn-secondary btn-custom" onclick="window.print()">
-                    <i class="fa-solid fa-print"></i> พิมพ์
+                    <i class="fa-solid fa-print"></i> พิมพ์หน้าเว็บ
                 </button>
             </div>
         </div>
@@ -165,7 +165,8 @@
     <!-- ข้อความแจ้งเตือนเริ่มต้น -->
     <div class="text-center text-muted mt-5" id="placeholderText">
         <i class="fa-solid fa-file-invoice mb-3 opacity-50" style="font-size: 3rem;"></i><br>
-        กรุณาระบุเลขที่ PO และกดค้นหา เพื่อดูรายงานยอดผลิต
+        กรุณาระบุเลขที่ PO เพื่อดูรายงานบนหน้าเว็บ<br>
+        หรือกด <b>"ส่งออก EXCEL (ทุก PO)"</b> เพื่อดาวน์โหลดข้อมูลทั้งหมด
     </div>
 
     <!-- พื้นที่แสดงรายงาน (ตารางจะถูก Gen ลงในนี้) -->
@@ -368,9 +369,7 @@
 
         let visibleStepIds = stepIds.filter(id => stepTotals[id] > 0);
 
-        if (visibleStepIds.length === 0) {
-            return;
-        }
+        if (visibleStepIds.length === 0) return;
 
         let html = `
         <div class="report-section">
@@ -436,56 +435,167 @@
         container.innerHTML += html;
     }
 
-    // ฟังก์ชันส่งออกเป็น Excel (รวมข้อมูล PO ไว้ใน Sheet เดียวกัน)
-    function exportToExcel() {
-        const poNo = document.getElementById('input_po_no').value.trim() || 'Report';
-        const sections = document.querySelectorAll('.report-section');
-        
-        if (sections.length === 0) {
-            alert('ไม่พบข้อมูลตารางสำหรับส่งออก กรุณาค้นหาข้อมูลก่อน'); 
-            return;
-        }
+    // ฟังก์ชันส่งออกเป็น Excel (ดึงทุก PO ที่มีในระบบ)
+    async function exportAllToExcel() {
+        showLoading(true);
+        try {
+            const startStr = document.getElementById('input_start_date').value;
+            const endStr = document.getElementById('input_end_date').value;
 
-        // ตัวแปรสำหรับเก็บข้อมูลทั้งหมดเพื่อสร้าง Sheet เดียว
-        let combinedData = [];
-
-        sections.forEach((sec, idx) => {
-            // ดึงข้อความหัวตาราง
-            const titleEl = sec.querySelector('.report-title-text');
-            if (titleEl) {
-                // จัดรูปแบบข้อความหัวตารางให้เป็น 1 แถวใน Excel
-                let titleText = titleEl.innerText.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-                combinedData.push([titleText]);
-            }
+            // 1. ดึงข้อมูล Daily ของทุก Order ในช่วงวันที่เลือก
+            let query = `${SUPABASE_URL}/daily_production?select=record_date,id_target,produced_amount,id_order`;
+            if (startStr) query += `&record_date=gte.${startStr}`;
+            if (endStr) query += `&record_date=lte.${endStr}`;
             
-            // ดึงข้อมูลในตาราง
-            const table = sec.querySelector('table');
-            if (table) {
-                const rows = table.querySelectorAll('tr');
-                rows.forEach(tr => {
-                    let rowData = [];
-                    const cells = tr.querySelectorAll('th, td');
-                    cells.forEach(cell => {
-                        rowData.push(cell.innerText);
+            const res = await fetch(query, { headers: headers, cache: 'no-store' });
+            const allDailyData = await res.json();
+
+            // สร้าง Workbook ของ Excel
+            const wb = XLSX.utils.book_new();
+
+            // กำหนด Style พื้นฐานสำหรับขอบและฟอนต์ (ต้องใช้ xlsx-js-style ถึงจะทำงาน)
+            const BORDER = {
+                top: { style: "thin", color: { rgb: "000000" } },
+                bottom: { style: "thin", color: { rgb: "000000" } },
+                left: { style: "thin", color: { rgb: "000000" } },
+                right: { style: "thin", color: { rgb: "000000" } }
+            };
+            const FONT_BASE = { name: "AngsanaUPC", sz: 16 };
+            const FONT_BOLD = { name: "AngsanaUPC", sz: 16, bold: true };
+
+            const STYLE_TITLE = { font: FONT_BOLD };
+            const STYLE_HEADER = { font: FONT_BOLD, border: BORDER, alignment: { horizontal: "left", vertical: "center" } };
+            const STYLE_CELL = { font: FONT_BASE, border: BORDER, alignment: { horizontal: "left", vertical: "center" } };
+            const STYLE_TOTAL_LABEL = { font: FONT_BOLD, border: BORDER, alignment: { horizontal: "left", vertical: "center" } };
+            const STYLE_TOTAL_VAL = { font: FONT_BOLD, border: BORDER, alignment: { horizontal: "left", vertical: "center" } };
+
+            let hasAnyData = false;
+
+            // 2. วนลูปทุก PO ในฐานข้อมูล
+            allPOs.forEach(poNo => {
+                // หาออเดอร์ทั้งหมดใน PO นี้
+                const ordersInPO = rawData.orders.filter(o => String(o.po_no).trim() === poNo);
+                if(ordersInPO.length === 0) return;
+
+                let wsData = [];
+                let colsWidth = [{ wch: 15 }]; // ความกว้างคอลัมน์แรก (วันที่)
+
+                // 3. วนลูปวาดตารางทีละออเดอร์ใน Sheet เดียวกัน
+                ordersInPO.forEach(order => {
+                    let workCode = maps.workIdToCode[order.id_work] || 'ไม่ระบุ';
+                    let targetQty = Number(order.quantity || 0).toLocaleString();
+                    
+                    let orderDaily = allDailyData.filter(d => d.id_target && rawData.targets.find(t => t.id_target === d.id_target && t.id_work === order.id_work));
+                    
+                    let stepIds = Array.from(maps.workIdToStepIds[order.id_work] || []).sort((a, b) => {
+                        return (maps.stepIdToLevel[a] || 9999) - (maps.stepIdToLevel[b] || 9999);
                     });
-                    combinedData.push(rowData);
-                });
-            }
-            
-            // เว้นบรรทัด 2 แถว ระหว่างรหัสชิ้นงานแต่ละตัว
-            combinedData.push([]);
-            combinedData.push([]);
-        });
 
-        // สร้าง Workbook และตั้งชื่อ Sheet
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet(combinedData);
-        
-        // กรองชื่อ Sheet ไม่ให้มีตัวอักษรต้องห้ามของ Excel
-        let safeSheetName = poNo.substring(0, 31).replace(/[\\\/\?\*\[\]\:]/g, '_');
-        
-        XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
-        XLSX.writeFile(wb, `JAGUAR_PO_${poNo}_Production.xlsx`);
+                    let activeDatesSet = new Set();
+                    orderDaily.forEach(d => { if(d.record_date) activeDatesSet.add(d.record_date.substring(0, 10)); });
+                    let activeDates = Array.from(activeDatesSet).sort(); 
+
+                    if (stepIds.length === 0) return; 
+
+                    let stepTotals = {}; 
+                    stepIds.forEach(id => stepTotals[id] = 0);
+
+                    activeDates.forEach(dateStr => {
+                        stepIds.forEach(stepId => {
+                            let qty = orderDaily.filter(record => 
+                                record.record_date.startsWith(dateStr) && 
+                                maps.targetIdToStepId[record.id_target] === stepId
+                            ).reduce((sum, record) => sum + (record.produced_amount || 0), 0);
+                            stepTotals[stepId] += qty;
+                        });
+                    });
+
+                    let visibleStepIds = stepIds.filter(id => stepTotals[id] > 0);
+                    if (visibleStepIds.length === 0) return;
+
+                    // --- เพิ่มข้อมูลลง Excel ---
+                    
+                    // หัวข้อ (Title)
+                    let titleStr = `PO: ${poNo} | Order: ${order.order_no} | ${workCode} (ยอดสั่ง ${targetQty} ชิ้น)`;
+                    wsData.push([{ v: titleStr, t: 's', s: STYLE_TITLE }]);
+
+                    // หัวตาราง (Headers)
+                    let headerRow = [{ v: "วันที่", t: 's', s: STYLE_HEADER }];
+                    visibleStepIds.forEach((stepId, idx) => {
+                        let stepName = maps.stepIdToName[stepId] || 'ไม่ระบุ';
+                        headerRow.push({ v: stepName, t: 's', s: STYLE_HEADER });
+                        // เซ็ตความกว้างคอลัมน์ขั้นตอนอื่นๆ ให้กว้าง 15 ตัวอักษรเท่ากัน
+                        if(colsWidth.length <= idx + 1) colsWidth.push({ wch: 15 }); 
+                    });
+                    wsData.push(headerRow);
+
+                    // ข้อมูลรายวัน (Data Rows)
+                    activeDates.forEach(dateStr => {
+                        let [y, m, d] = dateStr.split('-');
+                        let displayDate = `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}`;
+
+                        let dataRow = [{ v: displayDate, t: 's', s: STYLE_CELL }];
+                        
+                        visibleStepIds.forEach(stepId => {
+                            let qty = orderDaily.filter(record => 
+                                record.record_date.startsWith(dateStr) && 
+                                maps.targetIdToStepId[record.id_target] === stepId
+                            ).reduce((sum, record) => sum + (record.produced_amount || 0), 0);
+
+                            if (qty > 0) {
+                                dataRow.push({ v: qty.toLocaleString(), t: 's', s: STYLE_CELL });
+                            } else {
+                                dataRow.push({ v: "-", t: 's', s: STYLE_CELL });
+                            }
+                        });
+                        wsData.push(dataRow);
+                    });
+
+                    // บรรทัดยอดรวม (Totals)
+                    let totalRow = [{ v: "ยอดรวมทั้งหมด", t: 's', s: STYLE_TOTAL_LABEL }];
+                    visibleStepIds.forEach(stepId => {
+                        let total = stepTotals[stepId] || 0;
+                        if(total > 0) {
+                            totalRow.push({ v: total.toLocaleString(), t: 's', s: STYLE_TOTAL_VAL });
+                        } else {
+                            totalRow.push({ v: "-", t: 's', s: STYLE_TOTAL_VAL });
+                        }
+                    });
+                    wsData.push(totalRow);
+
+                    // เว้นบรรทัดก่อนขึ้นออเดอร์ถัดไป
+                    wsData.push([]);
+                    wsData.push([]);
+                });
+
+                // หาก PO นี้มีข้อมูล ให้แปลงอาร์เรย์ wsData ลงชีตใหม่
+                if(wsData.length > 0) {
+                    hasAnyData = true;
+                    const ws = XLSX.utils.aoa_to_sheet(wsData);
+                    
+                    // บังคับความกว้างคอลัมน์ให้เท่ากัน
+                    ws['!cols'] = colsWidth;
+                    
+                    // ตัดชื่อ Sheet ไม่ให้เกิน 31 ตัวอักษร และลบอักขระพิเศษ
+                    let safeSheetName = poNo.substring(0, 31).replace(/[\\\/\?\*\[\]\:]/g, '_');
+                    XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+                }
+            });
+
+            if(!hasAnyData) {
+                alert("ไม่พบข้อมูลการผลิตของทุก PO ในช่วงวันที่เลือก");
+                showLoading(false);
+                return;
+            }
+
+            // ดาวน์โหลดไฟล์ Excel (ชื่อไฟล์ JAGUAR_ALL_PO_Report.xlsx)
+            XLSX.writeFile(wb, `JAGUAR_ALL_PO_Report.xlsx`);
+
+        } catch (error) {
+            console.error("Export Error:", error);
+            alert("เกิดข้อผิดพลาดในการส่งออก Excel");
+        }
+        showLoading(false);
     }
 </script>
 
