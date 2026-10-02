@@ -4,135 +4,90 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JAGUAR PO PRODUCTION REPORT</title>
+    
+    <!-- CSS & JS Libraries -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <!-- SheetJS สำหรับสร้างไฟล์ Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
     <style>
-        :root {
-            --bg-dark: #020a16;
-            --panel-bg: rgba(7, 21, 43, 0.95);
-            --border-neon: #0088ff;
-            --border-dim: #174276;
-            --text-main: #e6f0ff;
-            --text-label: #8ca8cc;
-            --text-muted: #5c7c9e;
-            --neon-blue: #00aaff;
-            --neon-yellow: #f5a623;
-            --neon-green: #00ff88;
-            --neon-red: #ff3366;
-            --input-bg: #0a1f3d;
-            --input-text: #ffffff;
-            --table-bg: #051428;
-            --table-header-bg: #031022;
-            --table-hover-bg: #0c2b54;
-        }
-
         body {
-            background-color: var(--bg-dark);
-            color: var(--text-main);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #ffffff;
+            color: #000000;
+            font-family: 'Angsana New', 'Sarabun', Tahoma, sans-serif;
+            font-size: 16pt;
             margin: 0;
             padding: 15px;
-            overflow-x: hidden;
         }
 
-        body::before {
-            content: "";
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(135deg, rgba(2, 10, 22, 0.95), rgba(5, 15, 30, 0.9));
-            z-index: -1;
-        }
-
-        /* สำหรับการพิมพ์เอกสาร */
+        /* ซ่อนส่วนควบคุมตอนสั่งพิมพ์ */
         @media print {
             @page { size: A4 portrait; margin: 10mm; }
-            body { background: white; color: black; padding: 0; margin: 0; }
-            body::before { display: none; }
+            body { padding: 0; }
             .no-print { display: none !important; }
             .report-section {
-                border: none !important; background: white !important; color: black !important; box-shadow: none !important;
+                border: none !important; margin-bottom: 30px !important; padding: 0 !important;
                 page-break-inside: avoid;
-                margin-bottom: 20px !important;
             }
-            .prod-table { width: 100% !important; border-collapse: collapse !important; font-size: 0.8rem !important; color: black !important; }
-            .prod-table th, .prod-table td { border: 1px solid #000 !important; color: black !important; padding: 4px !important; }
-            .prod-table th { background-color: #e2e8f0 !important; -webkit-print-color-adjust: exact; }
-            .text-neon-yellow { color: #000 !important; font-weight: bold; }
-            .val-cell { color: #000 !important; }
+            .prod-table th { background-color: #e2e8f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
 
         .control-panel {
-            background: var(--panel-bg); border: 1px solid var(--border-dim);
-            border-radius: 6px; padding: 15px; margin-bottom: 15px;
+            background: #f8f9fa; border: 1px solid #dee2e6;
+            border-radius: 6px; padding: 15px; margin-bottom: 20px;
         }
 
         .report-section {
-            width: 100%; background: var(--table-bg);
-            border: 2px solid var(--border-neon); padding: 15px; margin-bottom: 20px;
-            box-shadow: 0 0 15px rgba(0, 136, 255, 0.1); border-radius: 8px;
+            width: 100%;
+            border: 1px solid #000000; padding: 15px; margin-bottom: 20px;
         }
 
         .report-header {
             display: flex; justify-content: space-between; align-items: flex-end;
-            border-bottom: 2px solid var(--border-dim); padding-bottom: 10px; margin-bottom: 15px;
+            border-bottom: 1px solid #000000; padding-bottom: 5px; margin-bottom: 10px;
         }
 
-        .report-title-text { font-size: 1.1rem; font-weight: bold; color: var(--neon-blue); }
-        .report-title-text span.highlight { color: var(--neon-yellow); }
+        .report-title-text { font-size: 18pt; font-weight: bold; }
 
         .table-responsive { width: 100%; overflow-x: auto; }
 
         .prod-table {
-            width: 100%; border-collapse: separate; border-spacing: 0;
-            border: 1px solid var(--border-dim); font-size: 0.85rem;
+            width: 100%; border-collapse: collapse;
+            border: 1px solid #000000; font-size: 16pt;
         }
 
         .prod-table th, .prod-table td {
-            border-right: 1px solid var(--border-dim); border-bottom: 1px solid var(--border-dim);
-            padding: 8px 10px; text-align: right; vertical-align: middle;
+            border: 1px solid #000000; padding: 4px 10px; text-align: right; vertical-align: middle;
+            white-space: nowrap; /* ปรับคอลัมน์ให้พอดี ไม่ตัดคำ */
         }
 
-        .prod-table th { background-color: var(--table-header-bg); color: var(--neon-blue); font-weight: bold; text-align: center; }
-        .prod-table td.col-date { text-align: center; font-weight: bold; color: var(--text-main); background-color: rgba(3, 16, 34, 0.5); }
-        .prod-table tr:hover td { background-color: var(--table-hover-bg); }
+        .prod-table th { background-color: #f2f2f2; font-weight: bold; text-align: center; }
+        .prod-table td.col-date { text-align: center; font-weight: bold; }
+        .prod-table tfoot th { background-color: #e9ecef; font-weight: bold; }
 
-        .prod-table tfoot th { background-color: #041224; color: var(--neon-green); font-weight: bold; }
+        .val-cell { font-weight: bold; }
+        .val-zero { color: #888888; font-weight: normal; } 
 
-        .val-cell { font-family: 'Courier New', monospace; font-weight: bold; font-size: 0.9rem; color: var(--neon-green); }
-        .val-zero { color: #1a2a3a; font-weight: normal; } 
-
-        .form-select-neon {
-            background-color: var(--input-bg); border: 1px solid var(--border-dim); color: var(--input-text);
-            padding: 8px 12px; border-radius: 4px; outline: none; font-size: 0.9rem; width: 100%;
-        }
-        .form-select-neon:focus { border-color: var(--neon-blue); box-shadow: 0 0 5px rgba(0, 170, 255, 0.4); }
+        .form-control { font-size: 14pt; }
         
-        .btn-neon {
-            background: #0d2b52; color: var(--text-main); border: 1px solid var(--border-dim);
-            padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem;
-            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-        }
-        .btn-neon:hover { background: var(--border-dim); color: #fff; }
-        
-        .btn-search { background: rgba(0, 170, 255, 0.1); color: var(--neon-blue); border-color: var(--neon-blue); }
-        .btn-search:hover { background: var(--neon-blue); color: #000; }
-        .btn-print { background: rgba(245, 166, 35, 0.1); color: var(--neon-yellow); border-color: var(--neon-yellow); }
-        .btn-print:hover { background: var(--neon-yellow); color: #000; }
+        .btn-custom { font-size: 14pt; font-weight: bold; display: inline-flex; align-items: center; gap: 6px; }
 
+        /* Dropdown ค้นหาอัจฉริยะ */
         .smart-dropdown-menu {
             position: absolute; top: 100%; left: 0; right: 0;
-            background: var(--input-bg); border: 1px solid var(--neon-blue);
+            background: #ffffff; border: 1px solid #ced4da;
             border-top: none; z-index: 1000; max-height: 250px; overflow-y: auto;
-            display: none; border-radius: 0 0 6px 6px; box-shadow: 0 4px 15px rgba(0, 170, 255, 0.2);
+            display: none; border-radius: 0 0 6px 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
         .smart-dropdown-item {
-            padding: 10px 12px; color: var(--text-main); cursor: pointer;
-            border-bottom: 1px solid rgba(23, 66, 118, 0.5); font-size: 0.85rem;
+            padding: 8px 12px; color: #000; cursor: pointer;
+            border-bottom: 1px solid #f1f1f1; font-size: 14pt;
         }
-        .smart-dropdown-item:hover { background: var(--table-hover-bg); color: var(--neon-yellow); }
-        .highlight-match { color: var(--neon-green); font-weight: bold; }
+        .smart-dropdown-item:hover { background: #e9ecef; }
+        .highlight-match { color: #0d6efd; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -142,12 +97,12 @@
             
             <!-- ช่องค้นหาเลขที่ PO -->
             <div class="col-md-4">
-                <label class="form-label text-label mb-1" style="font-size: 0.85rem;">ระบุเลขที่ PO (เพื่อประหยัดโควต้าข้อมูล):</label>
+                <label class="form-label mb-1 fw-bold">ระบุเลขที่ PO:</label>
                 <div class="input-group position-relative">
-                    <input type="text" id="input_po_no" class="form-select-neon form-control" 
+                    <input type="text" id="input_po_no" class="form-control" 
                            placeholder="พิมพ์เลขที่ PO..." autocomplete="off"
                            onkeyup="filterPODropdown()" onfocus="filterPODropdown()" onkeydown="handleEnter(event)">
-                    <button class="btn btn-neon btn-search" onclick="fetchAndRenderReport()">
+                    <button class="btn btn-primary btn-custom" onclick="fetchAndRenderReport()">
                         <i class="fa-solid fa-magnifying-glass"></i> ค้นหา
                     </button>
                     <div id="smart_dropdown_po" class="smart-dropdown-menu"></div>
@@ -156,23 +111,25 @@
             
             <!-- ช่องช่วงวันที่ -->
             <div class="col-md-4">
-                <label class="form-label text-label mb-1" style="font-size: 0.85rem;">ช่วงวันที่แสดงผล:</label>
-                <div class="d-flex gap-2">
-                    <div class="input-group">
-                        <input type="date" id="input_start_date" class="form-select-neon form-control px-2">
-                        <span class="input-group-text" style="background: var(--input-bg); color: var(--text-muted); border-color: var(--border-dim);">-</span>
-                        <input type="date" id="input_end_date" class="form-select-neon form-control px-2">
-                    </div>
+                <label class="form-label mb-1 fw-bold">ช่วงวันที่แสดงผล:</label>
+                <div class="input-group">
+                    <input type="date" id="input_start_date" class="form-control">
+                    <span class="input-group-text">-</span>
+                    <input type="date" id="input_end_date" class="form-control">
                 </div>
             </div>
             
             <!-- โซนปุ่มควบคุม -->
             <div class="col-md-4 text-end">
-                <div id="loadingStatus" class="d-inline-block text-neon-blue me-3" style="display: none !important;">
+                <div id="loadingStatus" class="d-inline-block me-3 text-primary" style="display: none !important;">
                     <i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูล...
                 </div>
-                <button class="btn btn-neon btn-print" onclick="window.print()">
-                    <i class="fa-solid fa-print"></i> พิมพ์รายงาน
+                
+                <button class="btn btn-success btn-custom me-2" onclick="exportToExcel()">
+                    <i class="fa-solid fa-file-excel"></i> EXCEL
+                </button>
+                <button class="btn btn-secondary btn-custom" onclick="window.print()">
+                    <i class="fa-solid fa-print"></i> พิมพ์
                 </button>
             </div>
         </div>
@@ -181,7 +138,7 @@
     <!-- พื้นที่แสดงรายงาน (ตารางจะถูก Gen ลงในนี้) -->
     <div id="reportContainer">
         <div class="text-center text-muted mt-5" id="placeholderText">
-            <i class="fa-solid fa-file-invoice fs-1 mb-3 opacity-50"></i><br>
+            <i class="fa-solid fa-file-invoice" style="font-size: 3rem; margin-bottom: 10px; opacity: 0.5;"></i><br>
             กรุณาระบุเลขที่ PO และกดค้นหา เพื่อดูรายงานยอดผลิต
         </div>
     </div>
@@ -194,7 +151,6 @@
         "Content-Type": "application/json", "Prefer": "return=minimal" 
     };
 
-    // เก็บข้อมูลพื้นฐาน (ยกเว้น Daily Production ที่จะโหลดทีหลัง)
     let rawData = { orders: [], workItems: [], steps: [], targets: [] };
     let maps = { workIdToCode: {}, stepIdToName: {}, stepIdToLevel: {}, targetIdToStepId: {}, workIdToStepIds: {} };
     let allPOs = [];
@@ -216,7 +172,6 @@
         document.getElementById('input_end_date').value = today.toISOString().substring(0, 10);
     }
 
-    // 1. ดึงข้อมูลพื้นฐานเพื่อทำตัวกรอง (ประหยัดโควต้า)
     async function fetchBaseData() {
         try {
             const endpoints = [
@@ -251,7 +206,6 @@
         });
     }
 
-    // ระบบ Dropdown สำหรับ PO
     function setupPOList() {
         let poSet = new Set();
         rawData.orders.forEach(o => {
@@ -269,7 +223,7 @@
         const matchedPOs = allPOs.filter(po => po.toLowerCase().includes(filterText));
         
         if (matchedPOs.length === 0) {
-            dropdown.innerHTML = `<div class="smart-dropdown-item" style="color:var(--text-muted); cursor:default;">ไม่พบข้อมูล PO</div>`;
+            dropdown.innerHTML = `<div class="smart-dropdown-item" style="color:#888; cursor:default;">ไม่พบข้อมูล PO</div>`;
         } else {
             matchedPOs.slice(0, 30).forEach(po => {
                 let displayHtml = po;
@@ -308,20 +262,18 @@
         document.getElementById('loadingStatus').style.setProperty('display', show ? 'inline-block' : 'none', 'important'); 
     }
 
-    // 2. ดึงข้อมูล Daily เฉพาะ PO ที่ค้นหา และสร้างตาราง
     async function fetchAndRenderReport() {
         const searchPO = document.getElementById('input_po_no').value.trim();
         if (!searchPO) return;
 
         document.getElementById('placeholderText').style.display = 'none';
         const container = document.getElementById('reportContainer');
-        container.innerHTML = ''; // Clear old data
+        container.innerHTML = ''; 
 
-        // หาออเดอร์ทั้งหมดที่ตรงกับ PO นี้
         const matchedOrders = rawData.orders.filter(o => String(o.po_no).trim().toLowerCase() === searchPO.toLowerCase());
         
         if (matchedOrders.length === 0) {
-            container.innerHTML = `<div class="text-center text-neon-red mt-5"><i class="fa-solid fa-circle-exclamation fs-2 mb-2"></i><br>ไม่พบรายการ Order ภายใต้ PO: ${searchPO}</div>`;
+            container.innerHTML = `<div class="text-center text-danger mt-5"><h5>ไม่พบรายการ Order ภายใต้ PO: ${searchPO}</h5></div>`;
             return;
         }
 
@@ -333,7 +285,6 @@
         let dailyData = [];
 
         try {
-            // ดึงข้อมูล Daily Production แบบจำกัดแค่ Order ID ที่เจอ และอยู่ในช่วงวันที่
             let query = `${SUPABASE_URL}/daily_production?id_order=in.(${orderIds.join(',')})&select=record_date,id_target,produced_amount`;
             if (startStr) query += `&record_date=gte.${startStr}`;
             if (endStr) query += `&record_date=lte.${endStr}`;
@@ -342,12 +293,11 @@
             dailyData = await res.json();
         } catch (error) {
             console.error("Fetch Daily Error:", error);
-            container.innerHTML = `<div class="text-danger">เกิดข้อผิดพลาดในการดึงข้อมูล</div>`;
+            container.innerHTML = `<div class="text-danger text-center">เกิดข้อผิดพลาดในการดึงข้อมูล</div>`;
             showLoading(false);
             return;
         }
 
-        // 3. วนลูปสร้างตารางแยกตามแต่ละออเดอร์ (รหัสชิ้นงาน)
         matchedOrders.forEach(order => {
             renderOrderTable(order, dailyData, container);
         });
@@ -359,39 +309,58 @@
         let workCode = maps.workIdToCode[order.id_work] || 'ไม่ระบุ';
         let targetQty = Number(order.quantity || 0).toLocaleString();
         
-        // กรองข้อมูลเฉพาะออเดอร์นี้
         let orderDaily = allDailyData.filter(d => d.id_target && rawData.targets.find(t => t.id_target === d.id_target && t.id_work === order.id_work));
         
-        // หาขั้นตอนทั้งหมดของสินค้านี้ และเรียงตาม Level
         let stepIds = Array.from(maps.workIdToStepIds[order.id_work] || []).sort((a, b) => {
             return (maps.stepIdToLevel[a] || 9999) - (maps.stepIdToLevel[b] || 9999);
         });
 
-        // หาวันที่ที่มีการคีย์งานจริง เพื่อนำมาสร้างเป็น Row แถวแนวตั้ง
         let activeDatesSet = new Set();
         orderDaily.forEach(d => { if(d.record_date) activeDatesSet.add(d.record_date.substring(0, 10)); });
-        let activeDates = Array.from(activeDatesSet).sort(); // เรียงวันที่น้อยไปมาก
+        let activeDates = Array.from(activeDatesSet).sort(); 
 
-        if (stepIds.length === 0) return; // ถ้าไม่มีขั้นตอนข้ามไป
+        if (stepIds.length === 0) return;
 
-        // สร้าง HTML สำหรับตารางนี้
+        // 1. คำนวณยอดรวมของแต่ละขั้นตอน เพื่อเช็คคอลัมน์ว่าง
+        let stepTotals = {};
+        stepIds.forEach(id => stepTotals[id] = 0);
+
+        activeDates.forEach(dateStr => {
+            stepIds.forEach(stepId => {
+                let qty = orderDaily.filter(record => 
+                    record.record_date.startsWith(dateStr) && 
+                    maps.targetIdToStepId[record.id_target] === stepId
+                ).reduce((sum, record) => sum + (record.produced_amount || 0), 0);
+                
+                stepTotals[stepId] += qty;
+            });
+        });
+
+        // 2. คัดกรองเก็บเฉพาะขั้นตอนที่มียอดรวม > 0 (ซ่อนคอลัมน์ที่ไม่มีข้อมูล)
+        let visibleStepIds = stepIds.filter(id => stepTotals[id] > 0);
+
+        if (visibleStepIds.length === 0) {
+            // ถ้ารหัสชิ้นงานนี้ไม่มีการผลิตเลย ข้ามไปไม่สร้างตาราง หรือจะให้โชว์แค่หัวข้อก็ได้
+            // container.innerHTML += `<div class="report-section"><b>${order.order_no} | ${workCode}</b><br><span class="text-muted">ไม่มีประวัติการผลิตในช่วงวันที่เลือก</span></div>`;
+            return;
+        }
+
         let html = `
         <div class="report-section">
             <div class="report-header">
-                <div class="report-title-text">
-                    ${order.order_no} <span style="color:var(--text-muted); margin:0 10px;">|</span> 
-                    <span class="highlight">${workCode}</span> 
-                    <span style="font-size:0.9rem; color:var(--text-main); margin-left: 10px;">ยอดสั่ง <span style="color:var(--neon-green);">${targetQty}</span> ชิ้น</span>
+                <div class="report-title-text" data-workcode="${workCode}">
+                    ${order.order_no} &nbsp;|&nbsp; 
+                    <span style="color: #0d6efd;">${workCode}</span> &nbsp;&nbsp;
+                    <span style="font-size: 14pt; color: #555;">(ยอดสั่ง: <b>${targetQty}</b> ชิ้น)</span>
                 </div>
             </div>
             <div class="table-responsive">
                 <table class="prod-table">
                     <thead>
                         <tr>
-                            <th style="width: 120px; text-align:center;">วันที่</th>`;
+                            <th style="width: 100px;">วันที่</th>`;
         
-        // สร้างหัวคอลัมน์ (ขั้นตอน)
-        stepIds.forEach(stepId => {
+        visibleStepIds.forEach(stepId => {
             let stepName = maps.stepIdToName[stepId] || 'ไม่ระบุ';
             html += `<th>${stepName}</th>`;
         });
@@ -399,46 +368,34 @@
                     </thead>
                     <tbody>`;
 
-        let stepTotals = {}; // เก็บยอดรวมของแต่ละคอลัมน์
-        stepIds.forEach(id => stepTotals[id] = 0);
+        activeDates.forEach(dateStr => {
+            let [y, m, d] = dateStr.split('-');
+            let displayDate = `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}`;
 
-        if (activeDates.length === 0) {
-            html += `<tr><td colspan="${stepIds.length + 1}" style="text-align:center; color:var(--text-muted);">ไม่มีประวัติการผลิตในช่วงวันที่เลือก</td></tr>`;
-        } else {
-            // สร้างข้อมูลแต่ละแถว (ตามวันที่)
-            activeDates.forEach(dateStr => {
-                let [y, m, d] = dateStr.split('-');
-                let displayDate = `${d}/${m}/${y}`; // Format: 18/8/2026
+            html += `<tr><td class="col-date">${displayDate}</td>`;
+            
+            visibleStepIds.forEach(stepId => {
+                let qty = orderDaily.filter(record => 
+                    record.record_date.startsWith(dateStr) && 
+                    maps.targetIdToStepId[record.id_target] === stepId
+                ).reduce((sum, record) => sum + (record.produced_amount || 0), 0);
 
-                html += `<tr><td class="col-date">${displayDate}</td>`;
-                
-                stepIds.forEach(stepId => {
-                    // หายอดรวมของขั้นตอนนี้ ในวันนี้
-                    let qtyForStepAndDate = orderDaily.filter(record => 
-                        record.record_date.startsWith(dateStr) && 
-                        maps.targetIdToStepId[record.id_target] === stepId
-                    ).reduce((sum, record) => sum + (record.produced_amount || 0), 0);
-
-                    stepTotals[stepId] += qtyForStepAndDate;
-
-                    if (qtyForStepAndDate > 0) {
-                        html += `<td class="val-cell">${qtyForStepAndDate.toLocaleString()}</td>`;
-                    } else {
-                        html += `<td class="val-cell val-zero">-</td>`;
-                    }
-                });
-                html += `</tr>`;
+                if (qty > 0) {
+                    html += `<td class="val-cell">${qty.toLocaleString()}</td>`;
+                } else {
+                    html += `<td class="val-cell val-zero">-</td>`;
+                }
             });
-        }
+            html += `</tr>`;
+        });
 
-        // สร้างแถวสรุปยอดรวม (Total) ด้านล่าง
         html += `   </tbody>
                     <tfoot>
                         <tr>
                             <th style="text-align:center;">ยอดรวมทั้งหมด</th>`;
-        stepIds.forEach(stepId => {
+        visibleStepIds.forEach(stepId => {
             let total = stepTotals[stepId] || 0;
-            html += `<th class="val-cell" style="color: var(--neon-yellow);">${total > 0 ? total.toLocaleString() : '-'}</th>`;
+            html += `<th class="val-cell text-primary">${total > 0 ? total.toLocaleString() : '-'}</th>`;
         });
         html += `       </tr>
                     </tfoot>
@@ -447,6 +404,39 @@
         </div>`;
 
         container.innerHTML += html;
+    }
+
+    // ฟังก์ชัน Export Excel (แยก Sheet ตามรหัสชิ้นงาน)
+    function exportToExcel() {
+        const poNo = document.getElementById('input_po_no').value.trim() || 'Report';
+        const sections = document.querySelectorAll('.report-section');
+        
+        if (sections.length === 0) {
+            alert('ไม่พบข้อมูลตารางสำหรับส่งออก กรุณาค้นหาข้อมูลก่อน'); 
+            return;
+        }
+
+        const wb = XLSX.utils.book_new();
+
+        sections.forEach((sec, idx) => {
+            const titleEl = sec.querySelector('.report-title-text');
+            const table = sec.querySelector('table');
+            
+            if(table) {
+                // ดึงชื่อชิ้นงานมาตั้งเป็นชื่อ Sheet (ตัดตัวอักษรที่ Excel ห้ามใช้ออก)
+                let sheetName = `Sheet${idx+1}`;
+                if(titleEl && titleEl.dataset.workcode) {
+                    let rawName = titleEl.dataset.workcode;
+                    sheetName = rawName.substring(0, 31).replace(/[\\\/\?\*\[\]\:]/g, '_'); 
+                }
+                
+                const ws = XLSX.utils.table_to_sheet(table);
+                XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            }
+        });
+
+        // สร้างและดาวน์โหลดไฟล์
+        XLSX.writeFile(wb, `JAGUAR_PO_${poNo}_Production.xlsx`);
     }
 </script>
 
